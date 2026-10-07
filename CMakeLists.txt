@@ -103,7 +103,12 @@ if(ZL_BUILD_APP)
   FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG v1.91.9)
-  FetchContent_MakeAvailable(glfw imgui)
+  set(glew-cmake_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+  set(ONLY_LIBS ON CACHE BOOL "" FORCE)
+  FetchContent_Declare(glew
+    GIT_REPOSITORY https://github.com/Perlmint/glew-cmake.git
+    GIT_TAG glew-cmake-2.2.0)
+  FetchContent_MakeAvailable(glfw imgui glew)
   find_package(OpenGL REQUIRED)
 
   add_library(zl_imgui STATIC
@@ -124,14 +129,14 @@ if(ZL_BUILD_APP)
     src/app/AppPanels.cpp
     src/app/Renderer.cpp
     src/app/ProxyMeshes.cpp
-    src/app/GLLoader.cpp)
+    src/app/WorldMap.cpp)
   if(WIN32)
     list(APPEND ZL_APP_SOURCES assets/zeralands.rc)
     add_executable(ZeraLands WIN32 ${ZL_APP_SOURCES})
   else()
     add_executable(ZeraLands ${ZL_APP_SOURCES})
   endif()
-  target_link_libraries(ZeraLands PRIVATE zl_core zl_imgui)
+  target_link_libraries(ZeraLands PRIVATE zl_core zl_imgui libglew_static)
   if(WIN32)
     # Keep a normal main() even for the WIN32 subsystem build.
     if(MSVC)

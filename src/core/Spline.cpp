@@ -189,7 +189,11 @@ void stampSplines(Terrain& t, const std::vector<Spline>& splines) {
             const SplineSample& a = smp[i];
             const SplineSample& b = smp[(i + 1) % m];
             const float halfA = a.width * 0.5f, halfB = b.width * 0.5f;
-            const float reach = std::max(halfA, halfB) + s.shoulder;
+            // embankments / cuttings widen with the height difference (~1:1.6 side slopes like real earthworks)
+            Vec2 gm = t.worldToGrid((a.pos.x + b.pos.x) * 0.5f, (a.pos.z + b.pos.z) * 0.5f);
+            const float fill = std::fabs((a.pos.y + b.pos.y) * 0.5f - t.baseHeight.sample(gm.x, gm.y) * t.heightRange);
+            const float shoulder = std::min(std::max(s.shoulder, fill * 1.6f), std::max(s.shoulder, 60.f));
+            const float reach = std::max(halfA, halfB) + shoulder;
             // bridges: don't stamp where the deck crosses water
             Vec2 ga = t.worldToGrid(a.pos.x, a.pos.z);
             bool overWater = !t.water.empty() && t.water.sample(ga.x, ga.y) > t.baseHeight.sample(ga.x, ga.y) + 0.5f / t.heightRange;
@@ -208,11 +212,11 @@ void stampSplines(Terrain& t, const std::vector<Spline>& splines) {
                     Vec2 off = P - C;
                     float dist = off.length();
                     float half = lerpf(halfA, halfB, tt);
-                    if (dist > half + s.shoulder) continue;
+                    if (dist > half + shoulder) continue;
                     // signed lateral offset (right of travel direction positive)
                     Vec2 dir = AB / std::sqrt(len2);
                     float lateral = -cross(dir, off);
-                    float w = dist <= half ? 1.f : 1.f - smoothstepf(half, half + s.shoulder, dist);
+                    float w = dist <= half ? 1.f : 1.f - smoothstepf(half, half + shoulder, dist);
                     float cover = dist <= half + 0.5f ? 1.f : (1.f - smoothstepf(half, half + s.shoulder * 0.6f, dist));
                     float& rm = t.roadMask.at(gx, gy);
                     rm = std::max(rm, cover);

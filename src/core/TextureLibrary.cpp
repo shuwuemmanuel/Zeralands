@@ -104,8 +104,12 @@ int TextureLibrary::scan(const std::string& root) {
         TextureSet& s = groups[gkey];
         if (s.name.empty()) {
             // readable name: original stem up to the map token
-            std::string nm;
-            for (size_t k = 0; k < mi; ++k) nm += (k ? " " : "") + toks[k];
+            // readable name: the original stem up to the map token ("Ground14_diffuse_xtm" -> "Ground14")
+            std::string low = stem;
+            for (auto& ch : low) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+            size_t cut = low.rfind(toks[mi]);
+            std::string nm = cut != std::string::npos ? stem.substr(0, cut) : stem;
+            while (!nm.empty() && (nm.back() == '_' || nm.back() == '-' || nm.back() == ' ' || nm.back() == '.')) nm.pop_back();
             s.name = nm.empty() ? stem : nm;
             s.folder = folder;
         }
@@ -156,11 +160,34 @@ int TextureLibrary::scan(const std::string& root) {
     return usable;
 }
 
+// Materials that can borrow a related texture (colour-shifted on load) when the library has no exact match.
+static MaterialKind fallbackOf(MaterialKind k) {
+    using M = MaterialKind;
+    switch (k) {
+        case M::LushGrass: case M::DryGrass: case M::Moss: return M::Grass;
+        case M::ForestFloor: case M::Mud: case M::PackedDirt: case M::Ash: return M::Dirt;
+        case M::Cliff: case M::Sandstone: case M::Basalt: case M::Crystal: return M::Rock;
+        case M::RedSand: case M::Salt: return M::Sand;
+        case M::Pebbles: case M::RailBed: return M::Gravel;
+        case M::Ice: return M::Snow;
+        case M::RomanStone: case M::Cobblestone: return M::Concrete;
+        case M::GlowPanel: return M::Asphalt;
+        default: return M::Count;
+    }
+}
+
 std::vector<int> TextureLibrary::candidates(MaterialKind k) const {
     std::vector<int> idx;
     for (size_t i = 0; i < sets_.size(); ++i)
         if (sets_[i].score[size_t(k)] > 0) idx.push_back(int(i));
     std::sort(idx.begin(), idx.end(), [&](int a, int b) { return sets_[a].score[size_t(k)] > sets_[b].score[size_t(k)]; });
+    // borrow from the related material (and its own fallback) when nothing matches exactly
+    for (MaterialKind f = fallbackOf(k); idx.empty() && f != MaterialKind::Count; f = fallbackOf(f)) {
+        for (size_t i = 0; i < sets_.size(); ++i)
+            if (sets_[i].score[size_t(f)] > 0) idx.push_back(int(i));
+        std::sort(idx.begin(), idx.end(), [&](int a, int b) { return sets_[a].score[size_t(f)] > sets_[b].score[size_t(f)]; });
+        if (f == fallbackOf(f)) break;
+    }
     return idx;
 }
 
@@ -202,6 +229,20 @@ MaterialPixels TextureLibrary::load(MaterialKind k, int size) const {
     bool haveN = !s.normal.empty() && loadImage8(s.normal, nrm, 3);
     if (haveN) nrm = resizeImage8(nrm, size, size);
 
+    // borrowed set: shift its average colour toward this material's palette (keeps detail, fixes hue)
+    if (s.score[size_t(k)] <= 0.f) {
+        double mr = 0, mg = 0, mb = 0;
+        const size_t np = size_t(size) * size;
+        for (size_t i = 0; i < np; ++i) { mr += alb.px[i * 3]; mg += alb.px[i * 3 + 1]; mb += alb.px[i * 3 + 2]; }
+        const Color3 want = materialInfo(k).albedo;
+        float fr = float(want.r * 255.0 / std::max(1.0, mr / np)), fg = float(want.g * 255.0 / std::max(1.0, mg / np)),
+              fb = float(want.b * 255.0 / std::max(1.0, mb / np));
+        for (size_t i = 0; i < np; ++i) {
+            alb.px[i * 3] = uint8_t(std::clamp(alb.px[i * 3] * lerpf(1.f, fr, 0.75f), 0.f, 255.f));
+            alb.px[i * 3 + 1] = uint8_t(std::clamp(alb.px[i * 3 + 1] * lerpf(1.f, fg, 0.75f), 0.f, 255.f));
+            alb.px[i * 3 + 2] = uint8_t(std::clamp(alb.px[i * 3 + 2] * lerpf(1.f, fb, 0.75f), 0.f, 255.f));
+        }
+    }
     MaterialPixels mp;
     mp.size = size;
     mp.source = s.name;

@@ -75,6 +75,10 @@ void computeSplat(const Terrain& t, const Environment& env, const EraProfile& er
     out.weights1.assign(size_t(res) * res * 4, 0);
     Noise nz(seed ^ 0x5B1A7ull);
     const float invRes = 1.f / float(res);
+    // Snowline in meters from climate: cold worlds are white down low, warm ones only on very high peaks.
+    const float temp = env.recipe.temperature;
+    const float baseAltitude = env.category == "Mountain" ? 1400.f : (env.category == "Cold" ? 300.f : 100.f);
+    const float snowLineM = lerpf(-200.f, 5200.f, temp) - baseAltitude;
     parallelFor(0, res, [&](int y) {
         float w[kMaxLayers];
         for (int x = 0; x < res; ++x) {
@@ -91,7 +95,12 @@ void computeSplat(const Terrain& t, const Environment& env, const EraProfile& er
             for (size_t i = 0; i < rules.size(); ++i) {
                 const LayerRule& r = rules[i];
                 if (ruleLayer[i] < 0 || r.weight <= 0.f) continue;
-                float wt = band(hj, r.hMin, r.hMax, 0.03f) * band(sj, r.slopeMin, r.slopeMax, 0.06f + 0.08f * r.slopeMin) *
+                float climate = 1.f;
+                if (r.kind == MaterialKind::Snow || r.kind == MaterialKind::Ice) {
+                    float altM = h * t.heightRange;
+                    climate = temp < 0.2f ? 1.f : smoothstepf(snowLineM - 250.f, snowLineM + 250.f, altM + n2 * 120.f);
+                }
+                float wt = climate * band(hj, r.hMin, r.hMax, 0.03f) * band(sj, r.slopeMin, r.slopeMax, 0.06f + 0.08f * r.slopeMin) *
                            band(m, r.moistMin, r.moistMax, 0.07f);
                 wt *= r.weight * clampf(1.f + r.noise * (n1 * 1.4f + n2 * 0.6f), 0.f, 2.f);
                 w[ruleLayer[i]] += wt;

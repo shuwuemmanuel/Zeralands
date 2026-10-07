@@ -254,7 +254,7 @@ std::vector<Vec2> pickSettlements(const Coarse& c, int count, Rng& rng, const Te
     return out;
 }
 
-Vec2 edgePoint(const Coarse& c, int side, Rng& rng) {
+Vec2 edgePoint(const Coarse& c, int side, Rng& rng, bool* dry = nullptr) {
     // pick the flattest of a few random spots along a map edge
     Vec2 best;
     float bestS = 1e9f;
@@ -271,6 +271,7 @@ Vec2 edgePoint(const Coarse& c, int side, Rng& rng) {
         float s = c.slope[i] + (c.water[i] ? 5.f : 0.f);
         if (s < bestS) { bestS = s; best = c.toWorld(x, y); }
     }
+    if (dry) *dry = bestS < 5.f;
     return best;
 }
 
@@ -537,7 +538,11 @@ void buildNetworks(const Terrain& t, const EraProfile& era, const NetworkRequest
             std::vector<Vec2> nodes = settlements;
             int exits = 1 + int(rng.uniform() * 2.f + req.roadDensity * 0.5f);
             int firstSide = rng.irange(0, 3);
-            for (int e = 0; e < exits; ++e) nodes.push_back(edgePoint(c, firstSide + e * 2 + (e > 1 ? 1 : 0), rng));
+            for (int e = 0; e < exits; ++e) {
+                bool dry = false;
+                Vec2 p = edgePoint(c, firstSide + e * 2 + (e > 1 ? 1 : 0), rng, &dry);
+                if (dry) nodes.push_back(p);   // islands: no roads running off into the sea
+            }
             auto edges = spanningEdges(nodes, req.roadDensity, rng);
             AStarCfg cfg{st.slopeCost, st.maxGrade, st.turnCost, st.waterCost, 0.35f, st.straightness < 0.3f ? 0.6f : 0.15f, &wig};
             int links = 0;
