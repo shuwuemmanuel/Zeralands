@@ -14,6 +14,8 @@ option(ZL_BUILD_CLI  "Build the headless zeralands_cli generator" ON)
 option(ZL_WITH_WEBP  "Decode .webp textures (needed for the xtm PBR packs)" ON)
 
 include(FetchContent)
+# Some dependencies (GLEW) still declare cmake_minimum_required < 3.5, which CMake 4 rejects.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 set(FETCHCONTENT_QUIET OFF)
 
 # ---------------------------------------------------------------- dependencies
