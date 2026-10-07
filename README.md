@@ -5,7 +5,11 @@ Generate realistic, eroded terrain for 47 environments across 12 eras of history
 rail, path and racetrack networks, foliage, PBR materials, a real-world GIS ripper, sculpting, an Unreal-style foliage
 painter and spline road builder — then export everything to your engine.
 
-![ZeraLands](assets/logo.png)
+![ZeraLands editor](docs/images/editor_gis.jpg)
+
+| Landscape evolution (shaded / heightmap) | Environment sweep |
+|---|---|
+| ![](docs/images/landscape_evolution.jpg) | ![](docs/images/environments.jpg) |
 
 ## Highlights
 
