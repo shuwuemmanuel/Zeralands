@@ -1,0 +1,9 @@
+build/
+build-*/
+out/
+exports/
+*.zlbin
+.vs/
+.vscode/
+.idea/
+CMakeUserPresets.json
