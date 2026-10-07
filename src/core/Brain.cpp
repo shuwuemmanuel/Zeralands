@@ -350,6 +350,12 @@ bool Brain::open(const std::string& dir) {
                     f.read(reinterpret_cast<char*>(histShape_.data()), nh * 4);
                     f.read(reinterpret_cast<char*>(histIntent_.data()), nh * 4);
                     if (!f) { histShape_.clear(); histIntent_.clear(); }
+                    float losses[3];
+                    if (f.read(reinterpret_cast<char*>(losses), sizeof(losses))) {
+                        lossIntent_ = losses[0];
+                        lossShape_ = losses[1];
+                        lossLatent_ = losses[2];
+                    }
                 }
             }
         }
@@ -428,6 +434,8 @@ bool Brain::save() const {
         f.write(reinterpret_cast<const char*>(&nh), 4);
         f.write(reinterpret_cast<const char*>(histShape_.data()), nh * 4);
         f.write(reinterpret_cast<const char*>(histIntent_.data()), nh * 4);
+        float losses[3] = {lossIntent_, lossShape_, lossLatent_};
+        f.write(reinterpret_cast<const char*>(losses), sizeof(losses));
         if (!f) return false;
     }
     std::error_code ec;
@@ -452,16 +460,18 @@ void Brain::trainStep(const std::vector<int>& batch) {
             const auto& y = intent_.forward(cond);
             std::vector<float> dy(y.size(), 0.f);
             int n = 0;
+            float sq = 0;
             for (size_t k = 0; k < y.size(); ++k) {
                 bool isGene = int(k) < nG;
                 if (isGene && !s.hasGenes) continue;
                 float target = isGene ? s.genes[k] : s.metrics[k - size_t(nG)];
                 float e = y[k] - target;
                 dy[k] = 2.f * e * w;
-                li += e * e;
+                sq += e * e;
                 ++n;
             }
             if (n) {
+                li += sq / float(n);
                 for (auto& d : dy) d /= float(n);
                 intent_.backward(dy);
             }
